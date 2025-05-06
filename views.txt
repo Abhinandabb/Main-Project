@@ -1,0 +1,2104 @@
+import base64
+import os
+import smtplib
+from datetime import datetime
+
+import qrcode
+from django.core.files.storage import FileSystemStorage
+from django.http import HttpResponse, JsonResponse
+from django.shortcuts import render, redirect
+
+# Create your views here.
+#Login
+from Myapp.models import *
+from Public_Transporation import settings
+
+
+def login(request):
+    return render(request,"Logintemp.html")
+def login_post(request):
+    username=request.POST['textfield']
+    password=request.POST['textfield2']
+    l=Login.objects.filter(Username=username,Password=password)
+    if l.exists():
+        ll=Login.objects.get(Username=username,Password=password)
+        request.session['lid'] = ll.id
+        if ll.Type=="admin":
+            return HttpResponse('<script>alert("Success");window.location="/Myapp/admin_home/"</script>')
+        else:
+            return HttpResponse('<script>alert("Invalid User");window.location="/Myapp/login/"</script>')
+    else:
+        return HttpResponse('<script>alert("Invalid Credentials");window.location="/Myapp/login/"</script>')
+
+#change password
+def Change_password(request):
+    return render(request,"Admin/Change Password.html")
+def Change_password_post(request):
+    Currentpassword=request.POST['textfield']
+    newpassword=request.POST['textfield2']
+    confirmpassword=request.POST['textfield3']
+    lid=request.session['lid']
+
+    ch=Login.objects.get(id=lid)
+    if ch.Password == Currentpassword:
+        if newpassword == confirmpassword:
+            Login.objects.filter(id=lid,Password=Currentpassword).update(Password=confirmpassword)
+            return HttpResponse('<script>alert("Success");window.location="/Myapp/login/"</script>')
+        else:
+            return HttpResponse('<script>alert("Mismatch Password");window.location="/Myapp/change_password/"</script>')
+    else:
+        return HttpResponse('<script>alert("Please Check your Password");window.location="/Myapp/change_password/"</script>')
+#home
+def home(request):
+    return render(request,"admintemp.html")
+
+def logouts(request):
+    request.session['lid']=""
+    return redirect('/Myapp/login/')
+
+#view drivers
+def View_drivers(request):
+    if request.session['lid'] == "":
+        return HttpResponse('<script>alert("Please Login... ");window.location="/Myapp/login/"</script>')
+    else:
+        data=Driver.objects.filter(Status='pending')
+        return render(request,"Admin/View drivers.html",{'data':data})
+
+def View_drivers_post(request):
+    if request.session['lid'] == "":
+        return HttpResponse('<script>alert("Please Login... ");window.location="/Myapp/login/"</script>')
+    else:
+        search=request.POST['textfield']
+        data=Driver.objects.filter(Status='pending',Name__icontains=search)
+        return render(request,"Admin/View drivers.html",{'data':data})
+
+def approve_drivers(request,id):
+    if request.session['lid'] == "":
+        return HttpResponse('<script>alert("Please Login... ");window.location="/Myapp/login/"</script>')
+    else:
+        obj=Driver.objects.filter(LOGIN_id=id).update(Status="Approved")
+        Login.objects.filter(id=id).update(Type='driver')
+        return HttpResponse('''<script>alert('Approved');window.location="/Myapp/view_drivers/"</script>''')
+
+def reject_drivers(request,id):
+    if request.session['lid'] == "":
+        return HttpResponse('<script>alert("Please Login... ");window.location="/Myapp/login/"</script>')
+    else:
+        obj=Driver.objects.filter(LOGIN_id=id).update(Status="Rejected")
+        Login.objects.filter(id=id).update(Type='reject')
+        return HttpResponse('''<script>alert('Rejected');window.location="/Myapp/view_drivers/"</script>''')
+
+#view approved drivers
+def View_approved_drivers(request):
+    if request.session['lid'] == "":
+        return HttpResponse('<script>alert("Please Login... ");window.location="/Myapp/login/"</script>')
+    else:
+        data = Driver.objects.filter(Status='Approved')
+        return render(request,"Admin/View approved drivers.html",{'data':data})
+def View_approved_drivers_post(request):
+    if request.session['lid'] == "":
+        return HttpResponse('<script>alert("Please Login... ");window.location="/Myapp/login/"</script>')
+    else:
+        search=request.POST['textfield']
+        data = Driver.objects.filter(Status='Approved', Name__icontains=search)
+        return render(request,"Admin/View approved drivers.html",{'data':data})
+
+def block_drivers(request,id):
+    if request.session['lid'] == "":
+        return HttpResponse('<script>alert("Please Login... ");window.location="/Myapp/login/"</script>')
+    else:
+        obj = Driver.objects.filter(LOGIN_id=id).update(Status="Blocked")
+        Login.objects.filter(id=id).update(Type='Block')
+        return HttpResponse('''<script>alert('Blocked');window.location="/Myapp/admin_home/"</script>''')
+
+def unblock_drivers(request,id):
+    if request.session['lid'] == "":
+        return HttpResponse('<script>alert("Please Login... ");window.location="/Myapp/login/"</script>')
+    else:
+        obj = Driver.objects.filter(LOGIN_id=id).update(Status="Approved")
+        Login.objects.filter(id=id).update(Type='driver')
+        return HttpResponse('''<script>alert('Unblocked');window.location="/Myapp/admin_home/"</script>''')
+
+#view rejected drivers
+def View_rejected_drivers(request):
+    if request.session['lid'] == "":
+        return HttpResponse('<script>alert("Please Login... ");window.location="/Myapp/login/"</script>')
+    else:
+        data = Driver.objects.filter(Status='Rejected')
+        return render(request,"Admin/view rejected drivers.html",{'data':data})
+def View_rejected_drivers_post(request):
+    if request.session['lid'] == "":
+        return HttpResponse('<script>alert("Please Login... ");window.location="/Myapp/login/"</script>')
+    else:
+        search=request.POST['textfield']
+        data = Driver.objects.filter(Status='Rejected', Name__icontains=search)
+        return render(request,"Admin/view rejected drivers.html",{'data':data})
+
+#view blocked drivers
+def View_blocked_drivers(request):
+    if request.session['lid'] == "":
+        return HttpResponse('<script>alert("Please Login... ");window.location="/Myapp/login/"</script>')
+    else:
+        data = Driver.objects.filter(Status='Blocked')
+        return render(request,"Admin/View Blocked Drivers.html",{'data':data})
+def View_blocked_drivers_post(request):
+    if request.session['lid'] == "":
+        return HttpResponse('<script>alert("Please Login... ");window.location="/Myapp/login/"</script>')
+    else:
+        search=request.POST['textfield']
+        data = Driver.objects.filter(Status='Blocked', Name__icontains=search)
+        return render(request,"Admin/View Blocked Drivers.html",{'data':data})
+
+#View_users
+def View_users(request):
+    if request.session['lid'] == "":
+        return HttpResponse('<script>alert("Please Login... ");window.location="/Myapp/login/"</script>')
+    else:
+        user=Users.objects.filter(Status='pending')
+        return render(request,"Admin/View users.html",{'data':user})
+def View_users_post(request):
+    if request.session['lid'] == "":
+        return HttpResponse('<script>alert("Please Login... ");window.location="/Myapp/login/"</script>')
+    else:
+        search=request.POST['textfield']
+        user=Users.objects.filter(Status="pending", Name__icontains=search)
+        return render(request,"Admin/View users.html",{'data':user})
+
+#view_blocked_drivers
+def View_blocked_users(request):
+    if request.session['lid'] == "":
+        return HttpResponse('<script>alert("Please Login... ");window.location="/Myapp/login/"</script>')
+    else:
+        b=Users.objects.filter(Status='Blocked')
+        return render(request,"Admin/View Blocked Users.html",{'data':b})
+def View_blocked_users_post(request):
+    if request.session['lid'] == "":
+        return HttpResponse('<script>alert("Please Login... ");window.location="/Myapp/login/"</script>')
+    else:
+        search=request.POST['textfield2']
+        b=Users.objects.filter(Status='Blocked', Name__icontains=search)
+        return render(request,"Admin/View Blocked Users.html",{'data':b})
+
+def block_user(request,id):
+    if request.session['lid'] == "":
+        return HttpResponse('<script>alert("Please Login... ");window.location="/Myapp/login/"</script>')
+    else:
+        obj=Users.objects.filter(LOGIN_id=id).update(Status="Blocked")
+        Login.objects.filter(id=id).update(Type='Block')
+        return HttpResponse('''<script>alert('Blocked');window.location="/Myapp/admin_home/"</script>''')
+
+def unblock_user(request,id):
+    if request.session['lid'] == "":
+        return HttpResponse('<script>alert("Please Login... ");window.location="/Myapp/login/"</script>')
+    else:
+        obj=Users.objects.filter(LOGIN_id=id).update(Status="pending")
+        Login.objects.filter(id=id).update(Type='user')
+        return HttpResponse('''<script>alert('UnBlocked');window.location="/Myapp/admin_home/"</script>''')
+#view complaints & send reply
+def View_complaints(request):
+    if request.session['lid'] == "":
+        return HttpResponse('<script>alert("Please Login... ");window.location="/Myapp/login/"</script>')
+    else:
+        cmp=Complaint.objects.all().order_by('-Date')
+        l=[]
+        name=""
+        for i in cmp:
+            if i.LOGIN.Type == "driver":
+                name=Driver.objects.get(LOGIN=i.LOGIN.id).Name
+            if i.LOGIN.Type == "user":
+                name=Users.objects.get(LOGIN=i.LOGIN.id).Name
+
+            l.append({'id':i.id,"name":name,"date":i.Date,
+                      "complaint":i.Complaint,"reply":i.Reply,
+                      "status":i.Status})
+        print(l)
+
+        return render(request,"Admin/View complaints.html",{'data':l})
+
+def View_complaints_post(request):
+    if request.session['lid'] == "":
+        return HttpResponse('<script>alert("Please Login... ");window.location="/Myapp/login/"</script>')
+
+        fdate=request.POST['textfield']
+        tdate=request.POST['textfield2']
+        cmp=Complaint.objects.filter(Date__range=[fdate,tdate])
+        return render(request, "Admin/View complaints.html", {'data': cmp})
+
+
+#Send reply
+def Send_reply(request,id):
+    if request.session['lid'] == "":
+        return HttpResponse('<script>alert("Please Login... ");window.location="/Myapp/login/"</script>')
+    else:
+        data=Complaint.objects.get(id=id)
+        return render(request,"Admin/Send reply.html",{'id':data})
+def Send_reply_post(request):
+    if request.session['lid'] == "":
+        return HttpResponse('<script>alert("Please Login... ");window.location="/Myapp/login/"</script>')
+    else:
+        reply=request.POST['textarea']
+        id=request.POST['id']
+
+        rep=Complaint.objects.get(id=id)
+        rep.Reply=reply
+        rep.Status='replied'
+        rep.save()
+        return HttpResponse('<script>alert("Success");window.location="/Myapp/view_complaints/"</script>')
+
+#view complaints against drivers & users
+def Complaints_against_driver_user(request):
+    if request.session['lid'] == "":
+        return HttpResponse('<script>alert("Please Login... ");window.location="/Myapp/login/"</script>')
+    else:
+        cmp=Cmp_Driver_User.objects.all().order_by('-Date')
+        n = ''
+        l=[]
+        for i in cmp:
+            frname=""
+            toname=""
+            if Driver.objects.filter(LOGIN=i.TO.id).exists():
+                toname=Driver.objects.get(LOGIN=i.TO.id).Name
+            if Users.objects.filter(LOGIN=i.TO.id).exists():
+                toname=Users.objects.get(LOGIN=i.TO.id).Name
+            if Driver.objects.filter(LOGIN=i.FROM.id).exists():
+                frname=Driver.objects.get(LOGIN=i.FROM.id).Name
+            if Users.objects.filter(LOGIN=i.FROM.id).exists():
+                frname=Users.objects.get(LOGIN=i.FROM.id).Name
+
+                # toname=Users.objects.get(LOGIN=i.TO.id)
+                # frname=Driver.objects.get(LOGIN=i.FROM.id)
+                #
+            l.append({'id':i.id,'date':i.Date,
+                         'complaint':i.Complaint,
+                         'reply':i.Reply,
+                         'toname':toname,
+                         'frname':frname,
+                         'type':i.Type,
+                         'status':i.Status})
+        print(l)
+        return render(request,"Admin/View Complaints Against Drivers & Users.html",{'data':l})
+def Complaints_against_driver_user_post(request):
+    if request.session['lid'] == "":
+        return HttpResponse('<script>alert("Please Login... ");window.location="/Myapp/login/"</script>')
+    else:
+        fdate=request.POST['textfield']
+        tdate=request.POST['textfield2']
+        cmp=Cmp_Driver_User.objects.filter(Date__range=[fdate,tdate])
+        return render(request,"Admin/View Complaints Against Drivers & Users.html",{'data':cmp})
+
+#send reply drivers & users
+def Send_reply_driver_user(request,id):
+    if request.session['lid'] == "":
+        return HttpResponse('<script>alert("Please Login... ");window.location="/Myapp/login/"</script>')
+    else:
+        data=Cmp_Driver_User.objects.get(id=id)
+        return render(request,"Admin/Send Reply Driver & user.html",{'id':data})
+def Send_reply_driver_user_post(request):
+    if request.session['lid'] == "":
+        return HttpResponse('<script>alert("Please Login... ");window.location="/Myapp/login/"</script>')
+    else:
+        replys=request.POST['textarea']
+        id = request.POST['id']
+        rep=Cmp_Driver_User.objects.get(id=id)
+        rep.Reply=replys
+        rep.Status='replied'
+        rep.save()
+        return HttpResponse('<script>alert("Success");window.location="/Myapp/cmp_against_drivers_users/"</script>')
+
+#view review
+def View_review(request):
+    if request.session['lid'] == "":
+        return HttpResponse('<script>alert("Please Login... ");window.location="/Myapp/login/"</script>')
+    else:
+        obj=Review.objects.all()
+        return render(request,"Admin/View Review.html",{'data':obj})
+def View_review_post(request):
+    if request.session['lid'] == "":
+        return HttpResponse('<script>alert("Please Login... ");window.location="/Myapp/login/"</script>')
+    else:
+        fdate=request.POST['textfield']
+        tdate=request.POST['textfield2']
+        obj=Review.objects.filter(Date__range=[fdate,tdate])
+        return render(request,"Admin/View Review.html",{'data':obj})
+
+
+def admin_add_criminals(request):
+    if request.session['lid'] == "":
+        return HttpResponse('<script>alert("Please Login... ");window.location="/Myapp/login/"</script>')
+    else:
+        return render(request,"Admin/admin add criminals.html")
+
+def admin_add_criminals_post(request):
+    if request.session['lid'] == "":
+        return HttpResponse('<script>alert("Please Login... ");window.location="/Myapp/login/"</script>')
+    else:
+        name=request.POST['textfield']
+        age=request.POST['textfield2']
+        Image=request.FILES['fileField']
+        Crime=request.POST['textfield3']
+
+
+        d=datetime.now().strftime('%Y%m%d-%H%M%S')+ '.jpg'
+
+        fs=FileSystemStorage()
+
+        fs.save(d,Image)
+
+        path=fs.url(d)
+
+
+
+        obj=Criminals()
+        obj.Name=name
+        obj.Age=age
+        obj.Image=path
+        obj.Crime=Crime
+        obj.save()
+        return HttpResponse('<script>alert("success");window.location="/Myapp/admin_home/"</script>')
+
+def admin_view_criminals(request):
+    if request.session['lid'] == "":
+        return HttpResponse('<script>alert("Please Login... ");window.location="/Myapp/login/"</script>')
+    else:
+        o = Criminals.objects.all()
+        return render(request, "Admin/admin view criminals.html", {"data": o})
+
+
+def admin_view_criminals_post(request):
+    if request.session['lid'] == "":
+        return HttpResponse('<script>alert("Please Login... ");window.location="/Myapp/login/"</script>')
+    else:
+        sc = request.POST['textfield']
+        o = Criminals.objects.filter(Name__icontains=sc)
+        return render(request, "Admin/admin view criminals.html", {"data": o})
+
+def admin_edit_criminals(request,id):
+    if request.session['lid'] == "":
+        return HttpResponse('<script>alert("Please Login... ");window.location="/Myapp/login/"</script>')
+    else:
+        res=Criminals.objects.get(id=id)
+        return render(request, "Admin/admin edit criminals.html", {'data':res})
+
+def admin_edit_criminals_post(request):
+    if request.session['lid'] == "":
+        return HttpResponse('<script>alert("Please Login... ");window.location="/Myapp/login/"</script>')
+    else:
+        name = request.POST['textfield']
+        age = request.POST['textfield2']
+        Crime = request.POST['textfield3']
+        id = request.POST['id']
+        obj=Criminals.objects.get(id=id)
+
+        if 'fileField' in request.FILES:
+            Image = request.FILES['fileField']
+
+            d = datetime.now().strftime('%Y%m%d-%H%M%S') + '.jpg'
+
+            fs = FileSystemStorage()
+
+            fs.save(d, Image)
+
+            path = fs.url(d)
+            obj.Image = path
+            obj.save()
+
+        obj.Name = name
+        obj.Age = age
+        obj.Crime = Crime
+        obj.save()
+
+        return HttpResponse('<script>alert("success");window.location="/Myapp/admin_view_criminals/"</script>')
+
+
+def admin_delete_criminals(request,id):
+    if request.session['lid'] == "":
+        return HttpResponse('<script>alert("Please Login... ");window.location="/Myapp/login/"</script>')
+    else:
+        obj = Criminals.objects.get(id=id)
+        obj.delete()
+        return HttpResponse('''<script>alert('Delete Successfull');window.location="/Myapp/admin_home/"</script>''')
+
+def admin_add_emergency(request):
+    if request.session['lid'] == "":
+        return HttpResponse('<script>alert("Please Login... ");window.location="/Myapp/login/"</script>')
+    else:
+        return render(request, "Admin/admin add emergency.html")
+
+def admin_add_emergency_post(request):
+    if request.session['lid'] == "":
+        return HttpResponse('<script>alert("Please Login... ");window.location="/Myapp/login/"</script>')
+    else:
+        Emergency_no=request.POST['textfield']
+        District=request.POST['district']
+
+
+        obj=Emergency()
+        obj.Mobile_no=Emergency_no
+        obj.District=District
+        obj.save()
+        return HttpResponse('<script>alert("success");window.location="/Myapp/admin_home/"</script>')
+
+def admin_view_emergency(request):
+    if request.session['lid'] == "":
+        return HttpResponse('<script>alert("Please Login... ");window.location="/Myapp/login/"</script>')
+    else:
+        o = Emergency.objects.all()
+        return render(request, "Admin/admin view emergency.html", {"data": o})
+
+
+def admin_view_emergency_post(request):
+    if request.session['lid'] == "":
+        return HttpResponse('<script>alert("Please Login... ");window.location="/Myapp/login/"</script>')
+    else:
+        sc = request.POST['textfield']
+        o = Emergency.objects.filter(Mobile_no__icontains=sc)
+        return render(request, "Admin/admin view emergency.html", {"data": o})
+
+def admin_edit_emergency(request,id):
+    if request.session['lid'] == "":
+        return HttpResponse('<script>alert("Please Login... ");window.location="/Myapp/login/"</script>')
+    else:
+        res=Emergency.objects.get(id=id)
+        return render(request, "Admin/admin edit emergency.html", {'data':res})
+
+def admin_edit_emergency_post(request):
+    if request.session['lid'] == "":
+        return HttpResponse('<script>alert("Please Login... ");window.location="/Myapp/login/"</script>')
+    else:
+        Emergency_no = request.POST['textfield']
+        District = request.POST['district']
+        id = request.POST['id']
+        obj = Emergency.objects.get(id=id)
+        obj.Mobile_no = Emergency_no
+        obj.District = District
+        obj.save()
+        return HttpResponse('<script>alert("success");window.location="/Myapp/admin_view_emergency/"</script>')
+
+
+def admin_delete_Emergency(request,id):
+    if request.session['lid'] == "":
+        return HttpResponse('<script>alert("Please Login... ");window.location="/Myapp/login/"</script>')
+    else:
+        obj = Emergency.objects.get(id=id)
+        obj.delete()
+        return HttpResponse('''<script>alert('Delete Successfull');window.location="/Myapp/admin_home/"</script>''')
+
+
+
+#Driver Functions
+
+def d_login(request):
+    username = request.POST['username']
+    password = request.POST['password']
+    l = Login.objects.filter(Username=username, Password=password)
+    if l.exists():
+        ll = Login.objects.get(Username=username, Password=password)
+        lid = ll.id
+        if ll.Type == "driver":
+            return JsonResponse({'status': 'ok','lid':lid,'type':"driver"})
+        elif ll.Type=='user':
+            return JsonResponse({'status': 'ok','lid':lid,'type':'user'})
+        else:
+            return JsonResponse({'status': 'no'})
+    else:
+        return JsonResponse({'status':'no'})
+
+def d_change_password(request):
+    Currentpassword = request.POST['currentpass']
+    newpassword = request.POST['newpass']
+    confirmpassword = request.POST['confirmpass']
+    lid = request.POST['lid']
+
+    ch = Login.objects.get(id=lid)
+    if ch.Password == Currentpassword:
+        if newpassword == confirmpassword:
+            Login.objects.filter(id=lid, Password=Currentpassword).update(Password=confirmpassword)
+            return JsonResponse({'status': 'ok'})
+        else:
+            return JsonResponse({'status': 'no'})
+    else:
+        return JsonResponse({'status':'no'})
+#
+# def d_register(request):
+
+#     name=request.POST['name']
+#     age=request.POST['age']
+#     mobile=request.POST['mobileno']
+#     email=request.POST['email']
+#     photo=request.POST['photo']
+#     vehicle_photo=request.POST['vehicle_photo']
+#     place=request.POST['place']
+#     pin=request.POST['pin']
+#     post=request.POST['post']
+#     experience=request.POST['experience']
+#     license=request.POST['license']
+#     vehicle=request.POST['vehicle']
+#     rc_no=request.POST['rcno']
+#     password=request.POST['password']
+#     confirm_password=request.POST['confirmpassw']
+#
+#     import base64
+#     date=datetime.now().strftime("%y%m%d-%H%M%S")+".jpg"
+#     a=open(r"C:\Users\hp\PycharmProjects\Public_Transporation\media\\"+date,"wb")
+#     fh=base64.b64decode(photo)
+#     a.write(fh)
+#     a.close()
+#
+#     import base64
+#     date1 = datetime.now().strftime("%y%m%d-%H%M%S") + "-.jpg"
+#     a1 = open(r"C:\Users\hp\PycharmProjects\Public_Transporation\media\\" + date1, "wb")
+#     fh1 = base64.b64decode(license)
+#     a1.write(fh1)
+#     a1.close()
+#
+#     import base64
+#     date2 = datetime.now().strftime("%y%m%d-%H%M%S") + "1-.jpg"
+#     a2 = open(r"C:\Users\hp\PycharmProjects\Public_Transporation\media\\" + date2, "wb")
+#     fh2 = base64.b64decode(vehicle_photo)
+#     a2.write(fh2)
+#     a2.close()
+#
+#     rep = Login()
+#     rep.Username = email
+#     rep.Password = confirm_password
+#     rep.Type='pending'
+#     rep.save()
+#
+#     obj = Driver()
+#     obj.LOGIN = rep
+#     obj.Name = name
+#     obj.Age=age
+#     obj.Mobile_no=mobile
+#     obj.Email=email
+#     obj.Photo="/media/"+date
+#     obj.vehicle_photo="/media/"+date2
+#     obj.Place=place
+#     obj.Pin=pin
+#     obj.Post=post
+#     obj.experience=experience
+#     obj.License="/media/"+date1
+#     obj.Vehicle=vehicle
+#     obj.Rc_no=rc_no
+#     obj.Status='pending'
+#     obj.Active_status='pending'
+#     obj.save()
+#
+#     return JsonResponse({'status':'ok'})
+#
+
+
+def d_register(request):
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'message': 'Invalid request method'})
+
+    try:
+        # Required fields validation
+        required_fields = ['name', 'age', 'mobileno', 'email', 'photo', 'vehicle_photo',
+                           'place', 'pin', 'post', 'experience', 'license', 'vehicle',
+                           'rcno', 'password', 'confirmpassw']
+
+        for field in required_fields:
+            if field not in request.POST:
+                return JsonResponse({'status': 'error', 'message': f'{field} is required'})
+
+        # Extract all fields from POST data
+        name = request.POST['name']
+        age = request.POST['age']
+        mobile = request.POST['mobileno']
+        email = request.POST['email']
+        photo = request.POST['photo']
+        vehicle_photo = request.POST['vehicle_photo']
+        place = request.POST['place']
+        pin = request.POST['pin']
+        post = request.POST['post']
+        experience = request.POST['experience']
+        license = request.POST['license']
+        vehicle = request.POST['vehicle']
+        rc_no = request.POST['rcno']
+        password = request.POST['password']
+        confirm_password = request.POST['confirmpassw']
+
+        # Password match validation
+        if password != confirm_password:
+            return JsonResponse({'status': 'error', 'message': 'Passwords do not match'})
+
+        # Mobile number validation
+        if not mobile.isdigit() or len(mobile) != 10:
+            return JsonResponse({'status': 'error', 'message': 'Invalid mobile number'})
+
+        # PIN validation
+        if not pin.isdigit() or len(pin) != 6:
+            return JsonResponse({'status': 'error', 'message': 'Invalid PIN code'})
+
+
+
+        # Age validation
+        try:
+            age_int = int(age)
+            if age_int < 18 or age_int > 100:
+                return JsonResponse({'status': 'error', 'message': 'Age must be between 18 and 100'})
+        except ValueError:
+            return JsonResponse({'status': 'error', 'message': 'Invalid age'})
+
+        # Check if email already exists
+        if Login.objects.filter(Username=email).exists():
+            return JsonResponse({'status': 'error', 'message': 'Email already registered'})
+        if Driver.objects.filter(Mobile_no=mobile).exists():
+            return JsonResponse({'status': 'error', 'message': 'Mobile number already registered'})
+
+        # Image processing
+        import base64
+        from django.conf import settings
+        import os
+
+        # Create media directory if it doesn't exist
+        media_path = os.path.join(settings.BASE_DIR, 'media')
+        if not os.path.exists(media_path):
+            os.makedirs(media_path)
+
+        # Save driver photo
+        try:
+            photo_data = base64.b64decode(photo.split(',')[1] if ',' in photo else photo)
+            photo_name = f"driver_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
+            photo_path = os.path.join(media_path, photo_name)
+            with open(photo_path, 'wb') as f:
+                f.write(photo_data)
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': f'Invalid driver photo: {str(e)}'})
+
+        # Save license photo
+        try:
+            license_data = base64.b64decode(license.split(',')[1] if ',' in license else license)
+            license_name = f"license_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
+            license_path = os.path.join(media_path, license_name)
+            with open(license_path, 'wb') as f:
+                f.write(license_data)
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': f'Invalid license photo: {str(e)}'})
+
+        # Save vehicle photo
+        try:
+            vehicle_data = base64.b64decode(vehicle_photo.split(',')[1] if ',' in vehicle_photo else vehicle_photo)
+            vehicle_name = f"vehicle_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
+            vehicle_path = os.path.join(media_path, vehicle_name)
+            with open(vehicle_path, 'wb') as f:
+                f.write(vehicle_data)
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': f'Invalid vehicle photo: {str(e)}'})
+
+        # Create login record
+        rep = Login()
+        rep.Username = email
+        rep.Password = confirm_password
+        rep.Type = 'pending'
+        rep.save()
+
+        # Create driver record
+        obj = Driver()
+        obj.LOGIN = rep
+        obj.Name = name
+        obj.Age = age_int
+        obj.Mobile_no = mobile
+        obj.Email = email
+        obj.Photo = f"/media/{photo_name}"
+        obj.vehicle_photo = f"/media/{vehicle_name}"
+        obj.Place = place
+        obj.Pin = pin
+        obj.Post = post
+        obj.experience = experience
+        obj.License = f"/media/{license_name}"
+        obj.Vehicle = vehicle
+        obj.Rc_no = rc_no
+        obj.Status = 'pending'
+        obj.Active_status = 'pending'
+        obj.F_amount='pending'
+        obj.save()
+
+        return JsonResponse({'status': 'ok', 'message': 'Registration successful'})
+
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': f'Registration unsuccessful: {str(e)}'})
+def d_view_profile(request):
+    lid=request.POST['lid']
+    data=Driver.objects.get(LOGIN_id=lid)
+    return JsonResponse({'status':'ok','name':data.Name,
+                         'age':data.Age,'mobile':data.Mobile_no,'email':data.Email,
+                         'photo':data.Photo,'place':data.Place,'vehicle_photo':data.vehicle_photo,
+                         'pin':data.Pin,'post':data.Post,
+                         'experience':data.experience,
+                         'license':data.License,
+                         'vehicle':data.Vehicle,'rcno':data.Rc_no,'active_status':data.Active_Status,'f_amount':data.F_amount})
+
+def d_update_profile(request):
+    name = request.POST['name']
+    email = request.POST['email']
+    age = request.POST['age']
+    mobile = request.POST['mobileno']
+    photo = request.POST['photo']
+    vehicle_photo = request.POST['vehiclephoto']
+    place = request.POST['place']
+    pin = request.POST['pin']
+    post = request.POST['post']
+    experience = request.POST['experience']
+    license = request.POST['license']
+    vehicle = request.POST['vehicle']
+    rc_no = request.POST['rcno']
+    lid=request.POST['lid']
+    active_status=request.POST['active_status']
+    f_amount=request.POST['f_amount']
+    obj = Driver.objects.get(LOGIN_id=lid)
+
+    if len(photo)>0:
+        import base64
+        date = datetime.now().strftime("%y%m%d-%H%M%S") + ".jpg"
+        a = open(r"C:\Users\hp\PycharmProjects\Public_Transporation\media\\" + date, "wb")
+        fh = base64.b64decode(photo)
+        a.write(fh)
+        a.close()
+        obj.Photo = "/media/"+date
+        obj.save()
+
+    if len(license)>0:
+        import base64
+        date1 = datetime.now().strftime("%y%m%d-%H%M%S") + "-.jpg"
+        a1 = open(r"C:\Users\hp\PycharmProjects\Public_Transporation\media\\" + date1, "wb")
+        fh1 = base64.b64decode(license)
+        a1.write(fh1)
+        a1.close()
+        obj.License = "/media/"+date1
+        obj.save()
+    if len(vehicle_photo)>0:
+            import base64
+            date2 = datetime.now().strftime("%y%m%d-%H%M%S") + "2-.jpg"
+            a2 = open(r"C:\Users\hp\PycharmProjects\Public_Transporation\media\\" + date2, "wb")
+            fh2 = base64.b64decode(vehicle_photo)
+            a2.write(fh2)
+            a2.close()
+            obj.vehicle_photo = "/media/"+date2
+            obj.save()
+
+    rep = Login.objects.get(id=lid)
+    rep.Username = email
+    rep.save()
+
+    obj.Name = name
+    obj.Age = age
+    obj.Mobile_no = mobile
+    obj.Email=email
+
+    obj.Place = place
+    obj.Pin = pin
+    obj.Post = post
+    obj.experience = experience
+    obj.Vehicle = vehicle
+    obj.Rc_no = rc_no
+    obj.Active_Status=active_status
+    obj.F_amount=f_amount
+    obj.save()
+    return JsonResponse({'status':'ok'})
+
+def d_view_spot_booking(request):
+    lid=request.POST['lid']
+    data = Spot_booking.objects.filter(DRIVER__LOGIN=lid).order_by('-id')
+    l=[]
+    for i in data:
+        l.append({'id':i.id,'user':i.USER.Name,'uid':i.USER.id,'date':i.Date,'latitude':i.Latitude,'longitude':i.Longitude,'status':i.Status,'location':i.Location,'qr':i.Qr,'amount':i.Amount,'Contact_number':i.USER.Mobile_no})
+
+    return JsonResponse({'status':'ok','data':l})
+
+def d_view_pre_booking(request):
+    lid = request.POST['lid']
+    data=Pre_booking.objects.filter(DRIVER__LOGIN=lid).order_by('-id')
+    l=[]
+    for i in data:
+        l.append({'id':i.id,'user':i.USER.Name,'uid':i.USER.id,'date':i.Date,'latitude':i.Latitude,'longitude':i.Longitude,'pickup_latitude':i.pickupLatitude,'pickup_longitude':i.pickupLongitude,'bookingdate':i.Booking_date,'time':i.Time,'status':i.Status,'amount':i.Amount,'qr':i.Qr,'Contact_number':i.USER.Mobile_no,'p_amount':i.P_Amount})
+    return JsonResponse({'status': 'ok','data':l})
+
+def d_spot_booking_accept(request):
+    id=request.POST['id']
+    data=Spot_booking.objects.filter(id=id).update(Status='Accepted')
+    return JsonResponse({'status':'ok'})
+
+def d_spot_booking_reject(request):
+    id=request.POST['id']
+    data = Spot_booking.objects.filter(id=id).update(Status='Rejected')
+    return JsonResponse({'status':'ok'})
+
+def d_pre_booking_accept(request):
+    id=request.POST['id']
+    data=Pre_booking.objects.filter(id=id).update(Status='Accepted')
+    return JsonResponse({'status':'ok'})
+
+def d_pre_booking_reject(request):
+    id=request.POST['id']
+    data = Pre_booking.objects.filter(id=id).update(Status='Rejected')
+    return JsonResponse({'status':'ok'})
+
+def d_send_complaints(request):
+    cmp=request.POST['complaint']
+    lid=request.POST['lid']
+
+    obj=Complaint()
+    obj.LOGIN_id=lid
+    obj.Date=datetime.now().today()
+    obj.Complaint=cmp
+    obj.Reply='pending'
+    obj.Status='pending'
+    obj.save()
+
+    return JsonResponse({'status':'ok'})
+
+def d_view_reply(request):
+    lid = request.POST['lid']
+    data = Complaint.objects.filter(LOGIN_id=lid).order_by('-Date')
+    l = []
+    for i in data:
+        l.append({
+            'id': i.id,
+            'Date': i.Date,
+            'Reply': i.Reply,
+            'Complaint': i.Complaint,
+            'Status': i.Status
+        })
+
+    return JsonResponse({'status': 'ok','data':l})
+
+def d_complaints_against_user(request):
+    cmp = request.POST['sendcmpuser']
+    lid = request.POST['lid']
+    id=request.POST['uid']
+
+    obj = Cmp_Driver_User()
+    obj.Date=datetime.now().today()
+    obj.Complaint=cmp
+    obj.Type='driver'
+    obj.Reply='pending'
+    obj.Status='pending'
+    obj.FROM_id=lid
+    obj.TO_id=Users.objects.get(id=id).LOGIN.id
+    obj.save()
+    return JsonResponse({'status':'ok'})
+
+def d_view_reply_cmp_user(request):
+    lid = request.POST['lid']
+    obj = Cmp_Driver_User.objects.filter(FROM_id=lid,Type="driver").order_by('-Date')
+    l = []
+    for i in obj:
+        l.append({
+            'id': i.id,
+            'date': i.Date,
+            'reply': i.Reply,
+            'complaint': i.Complaint,
+            'status': i.Status,
+            # 'From': i.FROM,
+            # 'To': i.TO
+        })
+
+    return JsonResponse({'status': 'ok', 'data': l})
+
+def d_spot_payment(request):
+    lid=request.POST['lid']
+    data=Spot_booking.objects.filter(USER__LOGIN_id=lid)
+    l=[]
+    for i in data:
+        l.append({
+            'id':i.id,
+            # 'spot_booking':i.spot_booking,
+            'date':i.Date,
+            'amount':i.Amount,
+            'status':i.Status
+        })
+
+    return JsonResponse({'status':'ok'})
+
+def d_pre_payment(request):
+    lid=request.POST['lid']
+    data = Pre_booking.objects.filter(USER__LOGIN_id=lid)
+    l = []
+    for i in data:
+        l.append({
+            'id': i.id,
+            # 'pre_booking': i.pre_booking,
+            'date': i.Date,
+            'amount': i.Amount,
+            'status': i.Status
+        })
+    return JsonResponse({'status':'ok'})
+
+def d_view_cmp_against_drivers(request):
+    lid=request.POST['lid']
+
+    cmp = Cmp_Driver_User.objects.filter(Type='user',TO=lid)
+    n = ''
+    l = []
+    for i in cmp:
+        frname = ""
+        # toname = ""
+        if Users.objects.filter(LOGIN=i.FROM.id).exists():
+            frname = Users.objects.get(LOGIN=i.FROM.id).Name
+            # toname=Users.objects.get(LOGIN=i.TO.id)
+            # frname=Driver.objects.get(LOGIN=i.FROM.id)
+            #
+        l.append({'id': i.id, 'date': i.Date,
+                  'complaint': i.Complaint,
+                  'reply': i.Reply,
+                  # 'toname': toname,
+                  'from': frname,
+                  'type': i.Type,
+                  'status': i.Status})
+    print(l)
+
+
+    return JsonResponse({'status':'ok','data':l})
+
+def d_send_review(request):
+    review=request.POST['review']
+    rating=request.POST['rating']
+    lid=request.POST['lid']
+
+    obj=Review()
+    obj.LOGIN_id=lid
+    obj.Type="driver"
+    obj.Date=datetime.now().date()
+    obj.Review=review
+    obj.Rating=rating
+    obj.save()
+    return JsonResponse({'status':'ok'})
+
+
+def d_alert(request):
+    lid = request.POST['lid']
+    data = Alert.objects.filter(DRIVER__LOGIN_id=lid).order_by('-Date')
+    l = []
+    for i in data:
+        l.append({
+            'id': i.id,
+            'Date': i.Date,
+            'Title': i.Title,
+            'Descriptions': i.Descriptions,
+            'Time': i.Time,
+            'Image': i.Image,
+        })
+
+    print(l)
+
+    return JsonResponse({'status': 'ok','data':l})
+
+def d_view_notification(request):
+    lid=request.POST['lid']
+    nid=request.POST['nid']
+    d=Alert.objects.filter(DRIVER__LOGIN=lid,id__gt=nid)
+    print(d)
+    if d.exists():
+        Alert.objects.filter(id=d[0].id)
+        return JsonResponse({'status': 'ok','message':'check your  Alert message','nid':str(d[0].id)})
+    else:
+         return JsonResponse({'status': 'no'})
+
+def d_view_emergency_no(request):
+    # emergency_no=request.POST['emergency_no']
+    # district=request.POST['district']
+    data = Emergency.objects.all()
+    l=[]
+    for i in data:
+        l.append({
+         'id':i.id,
+         'emergency_no':i.Mobile_no,
+         'district':i.District,
+        })
+
+    print(l)
+
+    return JsonResponse({'status': 'ok', 'data': l})
+
+
+def d_view_payment(request):
+    lid = request.POST['lid']
+
+    # Correct casing of related fields
+    d = pre_book_payment.objects.filter(pre_booking__DRIVER__LOGIN_id=lid).order_by('-Date')
+
+
+    l = []
+    for i in d:
+        l.append({
+            'id': i.id,
+            'user': i.USER.Name,
+            'date': i.Date,
+            'amount': i.Amount,
+            'Status': i.Status,
+            'Booking_date': i.pre_booking.Booking_date,
+            'Type': i.pre_booking.Type,
+        })
+
+    return JsonResponse({'status': 'ok', 'data': l})
+
+def d_view_spot_payment(request):
+    lid = request.POST['lid']
+
+    # Correct casing of related fields
+    d = spot_book_payment.objects.filter(spot_booking__DRIVER__LOGIN_id=lid).order_by('-Date')
+
+    l = []
+    for i in d:
+        l.append({
+            'id': i.id,
+            'user': i.USER.Name,
+            'date': i.Date,
+            'amount': i.Amount,
+            'Status': i.Status,
+            'Type': i.spot_booking.Type,
+        })
+    print(l)
+    return JsonResponse({'status': 'ok', 'data': l})
+
+
+# def d_qr_scanning(request):
+#     return JsonResponse({'status':'ok'})
+
+#User_Functions
+
+
+def u_change_password(request):
+    Currentpassword = request.POST['currentpass']
+    newpassword = request.POST['newpass']
+    confirmpassword = request.POST['confirmpass']
+    lid = request.POST['lid']
+
+    ch = Login.objects.get(id=lid)
+    if ch.Password == Currentpassword:
+        if newpassword == confirmpassword:
+            Login.objects.filter(id=lid, Password=Currentpassword).update(Password=confirmpassword)
+            return JsonResponse({'status': 'ok'})
+        else:
+            return JsonResponse({'status': 'no'})
+    else:
+        return JsonResponse({'status':'no'})
+
+
+def u_register(request):
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'message': 'Invalid request method'})
+
+    try:
+        # Validate required fields
+        required_fields = ['name', 'email', 'age', 'gender', 'place', 'pin',
+                           'post', 'mobile_no', 'password', 'confirm_password', 'photo']
+
+        for field in required_fields:
+            if field not in request.POST:
+                return JsonResponse({'status': 'error', 'message': f'{field} is required'})
+
+        # Extract data
+        name = request.POST['name']
+        email = request.POST['email']
+        age = request.POST['age']
+        gender = request.POST['gender']
+        place = request.POST['place']
+        pin = request.POST['pin']
+        post = request.POST['post']
+        photo = request.POST['photo']
+        mobile_no = request.POST['mobile_no']
+        password = request.POST['password']
+        confirm_password = request.POST['confirm_password']
+
+        # Validate password match
+        if password != confirm_password:
+            return JsonResponse({'status': 'error', 'message': 'Passwords do not match'})
+
+        # Validate email format
+        if '@' not in email or '.' not in email:
+            return JsonResponse({'status': 'error', 'message': 'Invalid email format'})
+
+        # Validate age
+        try:
+            age_int = int(age)
+            if age_int < 1 or age_int > 120:
+                return JsonResponse({'status': 'error', 'message': 'Age must be between 1 and 120'})
+        except ValueError:
+            return JsonResponse({'status': 'error', 'message': 'Invalid age'})
+
+        # Validate PIN
+        if not pin.isdigit() or len(pin) != 6:
+            return JsonResponse({'status': 'error', 'message': 'PIN must be 6 digits'})
+
+        # Validate mobile number
+        if not mobile_no.isdigit() or len(mobile_no) != 10:
+            return JsonResponse({'status': 'error', 'message': 'Mobile number must be 10 digits'})
+
+        # Check if email already exists
+        if Login.objects.filter(Username=email).exists():
+            return JsonResponse({'status': 'error', 'message': 'Email already registered'})
+
+        if Users.objects.filter(Mobile_no=mobile_no).exists():
+            return JsonResponse({'status': 'error', 'message': 'Mobile number already registered'})
+
+        # Save photo
+        try:
+            # Create media directory if it doesn't exist
+            media_path = os.path.join(settings.BASE_DIR, 'media')
+            if not os.path.exists(media_path):
+                os.makedirs(media_path)
+
+            # Generate unique filename
+            date = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"user_{date}.jpg"
+            filepath = os.path.join(media_path, filename)
+
+            # Decode and save image
+            image_data = base64.b64decode(photo.split(',')[1] if ',' in photo else photo)
+            with open(filepath, 'wb') as f:
+                f.write(image_data)
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': f'Failed to save image: {str(e)}'})
+
+        # Create login record
+        rep = Login()
+        rep.Username = email
+        rep.Password = password
+        rep.Type = 'user'
+        rep.save()
+
+        # Create user record
+        obj = Users()
+        obj.LOGIN = rep
+        obj.Name = name
+        obj.Email = email
+        obj.Age = age_int
+        obj.Gender = gender
+        obj.Place = place
+        obj.Pin = pin
+        obj.Post = post
+        obj.Photo = f"/media/{filename}"
+        obj.Mobile_no = mobile_no
+        obj.Status = 'pending'
+        obj.save()
+
+        return JsonResponse({'status': 'ok', 'message': 'Registration successful'})
+
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': f'Registration failed: {str(e)}'})
+
+
+
+def u_view_profile(request):
+    lid = request.POST['lid']
+    data = Users.objects.get(LOGIN_id=lid)
+    return JsonResponse({'status':'ok','name':data.Name,'email':data.Email,
+                         'age':data.Age,'gender':data.Gender,'place':data.Place,'pin':data.Pin,
+                         'post':data.Post,'photo':data.Photo,'mobile_no':data.Mobile_no})
+
+def u_update_profile(request):
+    name = request.POST['name']
+    email = request.POST['email']
+    age = request.POST['age']
+    gender=request.POST['gender']
+    place = request.POST['place']
+    pin = request.POST['pin']
+    post = request.POST['post']
+    photo = request.POST['photo']
+    mobile_no = request.POST['mobile_no']
+    lid = request.POST['lid']
+    obj = Users.objects.get(LOGIN_id=lid)
+    import base64
+
+    if len(photo) > 0:
+        # Fix padding for Base64 string
+        missing_padding = len(photo) % 4
+        if missing_padding != 0:
+            photo += "=" * (4 - missing_padding)
+
+        # Decode the Base64 string
+        fh = base64.b64decode(photo)
+
+        date = datetime.now().strftime("%Y%m%d-%H%M%S") + ".jpg"
+        with open("C:\\Users\\hp\\PycharmProjects\\Public_Transporation\\media\\" + date, "wb") as a:
+            a.write(fh)
+
+        obj.Photo = "/media/" + date
+        obj.save()
+
+    rep = Login.objects.get(id=lid)
+    rep.Username = email
+    rep.save()
+
+
+    obj.LOGIN = rep
+    obj.Name = name
+    obj.Email = email
+    obj.Age = age
+    obj.Gender=gender
+    obj.Place = place
+    obj.Pin = pin
+    obj.Post = post
+    obj.Mobile_no = mobile_no
+    obj.Status = 'pending'
+    obj.save()
+    return JsonResponse({'status': 'ok'})
+
+#
+# def u_update_profile(request):
+#     name = request.POST['name']
+#     email = request.POST['email']
+#     age = request.POST['age']
+#     gender=request.POST['gender']
+#     place = request.POST['place']
+#     pin = request.POST['pin']
+#     post = request.POST['post']
+#     photo = request.POST['photo']
+#     mobile_no = request.POST['mobile_no']
+#     lid = request.POST['lid']
+#     obj = Users.objects.get(LOGIN_id=lid)
+#
+#     if len(photo) > 0:
+#         import base64
+#         date = datetime.now().strftime("%y%m%d-%H%M%S") + ".jpg"
+#         a = open(r"C:\Users\hp\PycharmProjects\Public_Transporation\media\\" + date, "wb")
+#         fh = base64.b64decode(photo)
+#         a.write(fh)
+#         a.close()
+#         obj.Photo = "/media/" + date
+#         obj.save()
+#
+#
+#     rep = Login.objects.get(id=lid)
+#     rep.Username = email
+#     rep.save()
+#
+#     obj.Name = name
+#     obj.Email = email
+#     obj.Age = age
+#     obj.Gender=gender
+#     obj.Place = place
+#     obj.Pin = pin
+#     obj.Post = post
+#     obj.Mobile_no = mobile_no
+#     obj.Status = 'pending'
+#     obj.save()
+#     return JsonResponse({'status': 'ok'})
+#
+
+def updateloc(request):
+    lid=request.POST['lid']
+    lat=request.POST['latitude']
+    dis=request.POST['dis']
+    long=request.POST['longitude']
+    nu=""
+    if Emergency.objects.filter(District__icontains=dis).exists():
+        nu=Emergency.objects.get(District__icontains=dis).Mobile_no
+    print(dis)
+    if Driver.objects.filter(LOGIN=lid).exists():
+        if Location.objects.filter(DRIVER__LOGIN=lid).exists():
+            Location.objects.filter(DRIVER__LOGIN=lid).update(Latitude=lat,Longitude=long)
+            return JsonResponse({'status': 'ok',"num":nu})
+        else:
+            h=Location()
+            h.Longitude=long
+            h.Latitude=lat
+            h.DRIVER=Driver.objects.get(LOGIN=lid)
+            h.save()
+            print(nu)
+            return JsonResponse({'status': 'ok',"num":nu})
+    else:
+        return JsonResponse({'status': 'ok',"num":nu})
+
+
+def view_cabs(request):
+    from django.db.models.functions import Sqrt, Sin, Cos, Radians, ACos, Cast
+    from django.db.models import ExpressionWrapper, FloatField, F, Value
+    from django.db.models.functions import Radians, Cos, Sin, ACos
+
+    current_latitude = float(request.POST['latitude'])
+    current_longitude = float(request.POST['longitude'])
+
+    print('current latitude', current_latitude)
+    print('current longitude', current_longitude)
+
+    EARTH_RADIUS = 6371
+
+    # Ensure values passed to ACos are within valid range [-1, 1]
+    distance_expression = ExpressionWrapper(
+        EARTH_RADIUS * ACos(
+            Cos(Radians(Value(current_latitude))) * Cos(Radians(F('lat'))) *
+            Cos(Radians(F('long')) - Radians(Value(current_longitude))) +
+            Sin(Radians(Value(current_latitude))) * Sin(Radians(F('lat')))
+        ),
+        output_field=FloatField()
+    )
+
+    # Annotating the location queryset with distance and filtering by it
+    data = Location.objects.annotate(
+        lat=Cast('Latitude', FloatField()),
+        long=Cast('Longitude', FloatField())
+    ).annotate(
+        distance=distance_expression
+    ).filter(
+        distance__lte=1,DRIVER__Status="Approved",DRIVER__Active_Status="Active"
+    ).order_by('distance')
+
+    l = []
+    for i in data:
+        l.append({
+            'id': i.DRIVER.id,
+            'name': i.DRIVER.Name,
+            'vehicle': i.DRIVER.Vehicle,
+            'rc_no': i.DRIVER.Rc_no,
+            'photo': i.DRIVER.Photo,
+            'mobile_no': i.DRIVER.Mobile_no,
+            'vehicle_photo': i.DRIVER.vehicle_photo,
+            'experience': i.DRIVER.experience,
+            'latitude': i.Latitude,
+            'longitude': i.Longitude,
+            'Active_status':i.DRIVER.Active_Status,
+        })
+
+    print(l)
+    return JsonResponse({'status': 'ok', 'data': l})
+
+
+def spot_book_cabs(request):
+    # lid=request.POST['lid']
+    # did=request.POST['did']
+    # data=Spot_booking()
+    # data.USER,data.DRIVER,data.Date,data.Amount,data.Qr,data.Latitude,data.Longitude,data.Status
+    lid=request.POST['lid']
+    did=request.POST['did']
+    Latitude=request.POST['latitude']
+    Longitude=request.POST['longitude']
+    Location=request.POST['location']
+
+
+
+    obj=Spot_booking()
+    obj.USER=Users.objects.get(LOGIN_id=lid)
+    obj.Date=datetime.now().date()
+    obj.Amount=20
+
+    obj.DRIVER_id=did
+    obj.Latitude=Latitude
+    obj.Longitude=Longitude
+    obj.Location=Location
+    obj.Status="pending"
+    obj.save()
+
+
+
+    qr_filename = str(obj.id) + ".png"
+    qr_path = os.path.join(settings.MEDIA_ROOT, 'qrcode', qr_filename)
+
+    # Save the QR code file path to the database
+
+
+    obj.Qr = '/media/qrcode/' + qr_filename
+    obj.save()
+
+
+
+    # Create the QR code image
+    img = qrcode.make(str(obj.id))
+    img.save(qr_path)  # Save the QR code image to the correct path
+
+    return JsonResponse({'status': 'ok'})
+
+# def userslot_book_post(request):
+#     lid=request.POST['lid']
+#     slot=request.POST['slot_id']
+#     vhno=request.POST['vehicleno']
+#
+#     print(slot)
+#     now = datetime.now()
+#     time = now.time()
+#     datetime_field = now
+#
+#     # date = datetime.now().time()
+#     # time = datetime.now().today()
+#
+#     vars=Booking()
+#     vars.USER=User.objects.get(LOGIN_id=lid)
+#     vars.SLOT_id=slot
+#     vars.Datetime=datetime_field
+#     vars.time=time
+#     vars.vehicleno=vhno
+#     vars.status="Booked"
+#     vars.save()
+#
+#     import qrcode
+#     img = qrcode.make(str(vars.id))
+#     type(img)
+#     img.save("C:\\Users\\abhir\\Downloads\\Telegram Desktop\\smartparking\\smartparking\\media\\qr\\bookings\\" + str(vars.id) + ".png")
+#
+#     Booking.objects.filter(id=vars.id).update(paymentqr='/media/qr/bookings/'+str(vars.id)+'.png')
+#     return JsonResponse({'status': "ok"})
+
+def pre_book_cabs(request):
+
+    lid = request.POST['lid']
+    did=request.POST['did']
+    # Qr = request.POST['qr']
+    # Location=request.POST['location']
+    Latitude=request.POST['latitude']
+    Longitude=request.POST['longitude']
+    Pickup_latitude=request.POST['pickup_latitude']
+    Pickup_longitude=request.POST['pickup_longitude']
+    Time=request.POST['time']
+    Booking_date=request.POST['date']
+    # Status=request.POST['status']
+
+    if Pre_booking.objects.filter(DRIVER_id = did,Booking_date=Booking_date,Time=Time).exists():
+        return JsonResponse({'status': 'exi'})
+    else:
+        obj=Pre_booking()
+        obj.USER = Users.objects.get(LOGIN_id=lid)
+        obj.Date = datetime.now().date()
+        obj.DRIVER_id = did
+        obj.Latitude=Latitude
+        obj.Longitude=Longitude
+        obj.pickupLatitude=Pickup_latitude
+        obj.pickupLongitude=Pickup_longitude
+        obj.Booking_date=Booking_date
+        obj.Time=Time
+        obj.Amount = '20'
+        obj.Qr = ""
+        obj.Status="pending"
+        obj.save()
+
+        qr_filename = str(obj.DRIVER_id) + ".png"
+        qr_path = os.path.join(settings.MEDIA_ROOT, 'qrcode', qr_filename)
+
+        # Save the QR code file path to the database
+
+
+        obj.Qr = '/media/qrcode/' + str(obj.id)+".png"
+        obj.save()
+
+        # Create the QR code image
+        img = qrcode.make(str(obj.id))
+        img.save("C:\\Users\\hp\\PycharmProjects\\Public_Transporation\\media\\qrcode\\"+str(obj.id)+".png")  # Save the QR code image to the correct path
+        return JsonResponse({'status': 'ok'})
+
+def view_driver_details(request):
+    lid=request.POST['lid']
+    data=Driver.objects.get(LOGIN_id=lid)
+    return JsonResponse({'status': 'ok','name':data.Name,
+                         'age':data.Age,'mobile':data.Mobile_no,'email':data.Email,
+                         'photo':data.Photo,'place':data.Place,
+                         'pin':data.Pin,'post':data.Post,
+                         'experience':data.experience,
+                         'license':data.License,
+                         'vehicle':data.Vehicle,'rc_no':data.Rc_no,'Km_Amount':data.F_amount})
+
+def prebooking_payment(request):
+    lid=request.POST['lid']
+    print(lid,"liiiiiiiiiiiiiiiiidd")
+    pid=request.POST['pid']
+    amount=request.POST['amount']
+    pre=pre_book_payment()
+    pre.Date=datetime.now().today()
+    pre.Amount=amount
+    pre.Status='paid'
+    pre.USER=Users.objects.get(LOGIN_id=lid)
+    pre.pre_booking=Pre_booking.objects.get(id=pid)
+    pre.save()
+    Pre_booking.objects.filter(id=pid).update(Status='Completed')
+    return JsonResponse({'status': 'ok'})
+
+def send_complaints(request):
+    cmp = request.POST['complaint']
+    lid = request.POST['lid']
+    # print(lid,'--------------lid')
+
+    obj = Complaint()
+    obj.LOGIN_id = lid
+    obj.Date = datetime.now().today()
+    obj.Complaint = cmp
+    obj.Reply = 'pending'
+    obj.Status = 'pending'
+    obj.save()
+    return JsonResponse({'status': 'ok'})
+
+def view_reply(request):
+
+    # reply=request.POST['Reply']
+    # id=request.POST['id']
+    #
+    # obj=Complaint.objects.get(id=id)
+    # obj.Reply=reply
+    # obj.Status='replied'
+    # obj.save()
+    # return JsonResponse({'status': 'ok'})
+    lid = request.POST['lid']
+    data = Complaint.objects.filter(LOGIN_id=lid)
+    l = []
+    for i in data:
+        l.append({
+            'id': i.id,
+            'date': i.Date,
+            'reply': i.Reply,
+            'complaint': i.Complaint,
+            'status': i.Status
+        })
+
+    return JsonResponse({'status': 'ok', 'data': l})
+
+def send_complaint_against_drivers(request):
+    cmp = request.POST['sendcmpuser']
+    lid = request.POST['lid']
+    id = request.POST['did']
+
+    obj = Cmp_Driver_User()
+    obj.Date = datetime.now().today()
+    obj.Complaint = cmp
+    obj.Type='user'
+    obj.Reply = 'pending'
+    obj.Status = 'pending'
+    obj.FROM_id = lid
+    obj.TO_id = id
+    obj.save()
+    return JsonResponse({'status': 'ok'})
+
+def view_reply_against_driver(request):
+    lid = request.POST['lid']
+    # obj = Cmp_Driver_User.objects.filter(LOGIN_id=lid)
+    obj = Cmp_Driver_User.objects.filter(FROM_id=lid,Type="user")
+    l = []
+    for i in obj:
+        l.append({
+            'id': i.id,
+            'date': i.Date,
+            'reply': i.Reply,
+            'complaint': i.Complaint,
+            'status': i.Status
+        })
+
+    return JsonResponse({'status': 'ok', 'data': l})
+
+def send_feedback(request):
+    review = request.POST['review']
+    rating = request.POST['rating']
+    lid = request.POST['lid']
+
+    obj = Review()
+    obj.LOGIN_id = lid
+    obj.Type = "user"
+
+    obj.Date = datetime.now().date()
+    obj.Review = review
+    obj.Rating = rating
+    obj.save()
+    return JsonResponse({'status': 'ok'})
+
+def view_spot_booking(request):
+    lid=request.POST['lid']
+    # did = request.POST['did']
+
+    data=Spot_booking.objects.filter(USER__LOGIN_id=lid).order_by('-Date')
+    l=[]
+    for i in data:
+        # log=Driver.objects.get(id=i.DRIVER.id).LOGIN.id
+        if Location.objects.filter(DRIVER_id=i.DRIVER.id).exists():
+            lat=Location.objects.get(DRIVER_id=i.DRIVER.id).Latitude
+            long=Location.objects.get(DRIVER_id=i.DRIVER.id).Longitude
+            p_amount=Driver.objects.get(id=i.DRIVER.id).F_amount
+
+            l.append({
+                'id':i.id,
+                'date':i.Date,
+                'amount':i.Amount,
+                'latitude':i.Latitude,
+                'longitude':i.Longitude,
+                'location':i.Location,
+                'driver':i.DRIVER.Name,
+                'did':i.DRIVER.LOGIN.id,
+                'qr':i.Qr,
+                'status':i.Status,
+                'lat':lat,
+                'long':long,
+                'p_amount':p_amount,
+                 })
+            # print(i.Status,'hhhhhhhhh')
+            # print(i.Amount,'ggggggggggggggggggggggggg')
+
+    print(l,'lllllllllll')
+    return JsonResponse({'status': 'ok', 'data': l})
+def view_pre_booking(request):
+    lid = request.POST['lid']
+    # did=request.POST['did']
+    data = Pre_booking.objects.filter(USER__LOGIN_id=lid).order_by('-Date')
+    l = []
+    for i in data:
+        lat = Location.objects.get(DRIVER_id=i.DRIVER.id).Latitude
+        long = Location.objects.get(DRIVER_id=i.DRIVER.id).Longitude
+        l.append({
+            'id': i.id,
+            'date': i.Date,
+            'amount': i.Amount,
+            # 'location': i.Location,
+            'latitude':i.Latitude,
+            'longitude':i.Longitude,
+            'pickup_latitude':i.pickupLatitude,
+            'pickup_longitude':i.pickupLongitude,
+            'booking_date':i.Booking_date,
+            'time': i.Time,
+            'p_amount':i.P_Amount,
+            'driver': i.DRIVER.Name,
+            'did': i.DRIVER.LOGIN.id,
+            'qr': i.Qr,
+            'lat': lat,
+            'long': long,
+            'status': i.Status,
+        })
+    return JsonResponse({'status': 'ok', 'data': l})
+
+
+
+
+
+
+def cancel_booking(request):
+   id=request.POST['id']
+   p=Spot_booking.objects.get(id=id)
+   p.Status="Cancelled"
+   p.save()
+   return JsonResponse({'status': 'ok'})
+def pay_booking(request):
+   id=request.POST['id']
+   p=Spot_booking.objects.get(id=id)
+   p.Status="paid"
+   p.save()
+   return JsonResponse({'status': 'ok'})
+
+def pay_prebooking(request):
+   id=request.POST['id']
+   p=Pre_booking.objects.get(id=id)
+   p.Status="paid"
+   p.save()
+
+   pick_lat=p.pickupLatitude
+   pick_longi=p.pickupLongitude
+
+   lat=p.Latitude
+   longi=p.Longitude
+
+   distance = calculate_distance(lat, longi, pick_lat, pick_longi)
+   p=Pre_booking.objects.get(id=id).DRIVER.F_amount
+   print("D amount",p)
+   amnt=(float(distance)*float(p))-20
+   pp=round(amnt,2)
+   print(pp)
+
+   Pre_booking.objects.filter(id=id).update(P_Amount=pp)
+
+   print(f"Distance from pickup: {distance:.2f} km")
+
+   # print("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+   # print(round(distance, 2))
+   # print("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+
+
+
+
+
+
+   return JsonResponse({'status': 'ok'})
+
+def pay_spotbooking(request):
+    id = request.POST['id']
+    amount=request.POST['s_amount']
+    lid=request.POST['lid']
+    p = Spot_booking.objects.get(id=id)
+    p.Status = "Completed"
+    p.Amount=amount
+    p.save()
+
+    # lat=p.Latitude
+    # long=p.Longitude
+
+    sbp=spot_book_payment()
+    sbp.spot_booking=Spot_booking.objects.get(id=id)
+    sbp.Date=datetime.now().today()
+    sbp.Amount=amount
+    sbp.USER=Users.objects.get(LOGIN_id=lid)
+    sbp.Status='paid'
+    sbp.save()
+
+
+
+    return JsonResponse({'status': 'ok'})
+def pre_cancel_booking(request):
+   id=request.POST['id']
+   p = Pre_booking.objects.get(id=id)
+   p.Status = "Cancelled"
+   p.save()
+   return JsonResponse({'status': 'ok'})
+
+
+
+def qr_scanning(request):
+    scanid=request.POST['scan_id']
+    print(scanid)
+    if Spot_booking.objects.filter(id=scanid,Type="spot"):
+        Spot_booking.objects.filter(id=scanid).update(Status="verified")
+        u=Spot_booking.objects.get(id=scanid)
+        return JsonResponse({'status': 'ok','name':u.USER.Name,'photo':u.USER.Photo,'Amount':u.Amount,'Location':u.Location,'date':u.Date,'Mobile_no':u.USER.Mobile_no,'type':u.Type})
+    elif Pre_booking.objects.filter(id=scanid,Type="pre"):
+        Pre_booking.objects.filter(id=scanid).update(Status="verified")
+        u=Pre_booking.objects.get(id=scanid)
+        return JsonResponse({'status': 'ok','name':u.USER.Name,'photo':u.USER.Photo,'date':u.Date,'Mobile_no':u.USER.Mobile_no,'Location':"",'Booking_date':u.Booking_date,'Time':u.Time,'Amount':u.Amount,'type':u.Type})
+
+    else:
+        return JsonResponse({'status': 'Not Found'})
+
+
+
+
+
+
+def qrchecking(request):
+    scan_id=request.POST['scan_id']
+    # cid=request.POST['cid']
+    res=Spot_booking.objects.filter(id=scan_id)
+    l=[]
+    for i in res:
+        l.append(
+            {
+                'id':i.id,
+                "name": i.Users.Name,
+                "Photo": i.Users.Photo,
+                "Date": i.Date,
+                "Amount":i.Amount,
+                "Latitude": i.Latitude,
+                "Longitude":i.Longitude,
+                "Location":i.Location,
+                  })
+
+    return JsonResponse({'status': 'ok'})
+def qrcheckings(request):
+
+    scan_id=request.POST['scan_id']
+    # cid=request.POST['cid']
+    res=Pre_booking.objects.filter(id=scan_id)
+    l=[]
+    for i in res:
+        l.append(
+            {
+                'id':i.id,
+                "name": i.Users.Name,
+                "Photo": i.Users.Photo,
+                "Date": i.Date,
+                "Amount":i.Amount,
+                "Latitude": i.Latitude,
+                "Longitude":i.Longitude,
+                "Location":i.Location,
+                "Booking_date":i.Booking_date,
+                "Time":i.Time,
+
+                  })
+
+    return JsonResponse({'status': 'ok'})
+
+
+
+
+
+
+
+
+
+
+
+# def view_cabs(request):
+#     from django.db.models.functions import Sqrt, Sin, Cos, Radians, ACos, Cast
+#     from django.db.models import ExpressionWrapper, FloatField, F, Value
+#     from django.db.models.functions import Radians, Cos, Sin, ACos
+#
+#     current_latitude = float(request.POST['latitude'])
+#     current_longitude = float(request.POST['longitude'])
+#
+#     print('current latitude', current_latitude)
+#     print('current longitude', current_longitude)
+#
+#     EARTH_RADIUS = 6371
+#
+#     # Ensure values passed to ACos are within valid range [-1, 1]
+#     distance_expression = ExpressionWrapper(
+#         EARTH_RADIUS * ACos(
+#             Cos(Radians(Value(current_latitude))) * Cos(Radians(F('lat'))) *
+#             Cos(Radians(F('long')) - Radians(Value(current_longitude))) +
+#             Sin(Radians(Value(current_latitude))) * Sin(Radians(F('lat')))
+#         ),
+#         output_field=FloatField()
+#     )
+#
+#     # Annotating the location queryset with distance and filtering by it
+#     data = Location.objects.annotate(
+#         lat=Cast('Latitude', FloatField()),
+#         long=Cast('Longitude', FloatField())
+#     ).annotate(
+#         distance=distance_expression
+#     ).filter(
+#         distance__lte=1
+#     ).order_by('distance')
+#
+#     if data.exists():
+#         lid = request.POST['lid']
+#         nid = request.POST['nid']
+#
+#         from datetime import datetime
+#         today = datetime.now().date()
+#         dd = Spot_booking.objects.filter(USER__LOGIN_id=lid, date=today, id__gt=nid).order_by('id')
+#
+#         f = dd[0]
+#         return JsonResponse({"status": "ok", 'nid': f.id, 'message': 'Your cab reached soon..'})
+#
+#     else:
+#         return JsonResponse({'status': 'no'})
+
+
+
+
+
+# def view_cabs(request):
+#     from django.db.models.functions import Sqrt, Sin, Cos, Radians, ACos, Cast
+#     from django.db.models import ExpressionWrapper, FloatField, F, Value
+#     from django.db.models.functions import Radians, Cos, Sin, ACos
+#
+#     current_latitude = float(request.POST['latitude'])
+#     current_longitude = float(request.POST['longitude'])
+#
+#     print('current latitude', current_latitude)
+#     print('current longitude', current_longitude)
+#
+#     EARTH_RADIUS = 6371
+#
+#     distance_expression = ExpressionWrapper(
+#         EARTH_RADIUS * ACos(
+#             Cos(Radians(Value(current_latitude))) * Cos(Radians(F('lat'))) *
+#             Cos(Radians(F('long')) - Radians(Value(current_longitude))) +
+#             Sin(Radians(Value(current_latitude))) * Sin(Radians(F('lat')))
+#         ),
+#         output_field=FloatField()
+#     )
+#
+#     data = Location.objects.annotate(
+#         lat=Cast('Latitude', FloatField()),
+#         long=Cast('Longitude', FloatField())
+#     ).annotate(
+#         distance=distance_expression
+#     ).filter(
+#         distance__lte=1
+#     ).order_by('distance')
+#
+#     print(data,'kk')
+#
+#     if data.exists():
+#         # lid = request.POST['lid']
+#         # nid = request.POST['nid']
+#         #
+#         # print(lid,'lllll')
+#         #
+#         # print(nid,'nnnnnnn')
+#         #
+#         # from datetime import datetime
+#         # today = datetime.now().date()
+#         # dd = Spot_booking.objects.filter(USER__LOGIN_id=lid, Date=today, id__gt=nid).order_by('id')
+#         #
+#         # print(dd,'ddddddd')
+#         #
+#         # if dd.exists():
+#         #     f = dd[0]
+#         #     return JsonResponse({"status": "ok", 'nid': f.id, 'message': 'Your cab reached soon..'})
+#         # else:
+#             return JsonResponse({'status': 'ok'})
+#
+#     else:
+#         return JsonResponse({'status': 'no'})
+
+
+from django.http import JsonResponse
+from datetime import datetime
+from math import radians, cos, sin, asin, sqrt
+
+# def viewNotification(request):
+#     lid = request.POST['lid']
+#     nid = request.POST['nid']
+#
+#     print(lid, 'lllll')
+#
+#     print(nid, 'nnnnnnn')
+#
+#     from datetime import datetime
+#     today = datetime.now().date()
+#     dd = Spot_booking.objects.filter(USER__LOGIN_id=lid, Date=today, id__gt=nid).order_by('id')
+#
+#     print(dd, 'ddddddd')
+#
+#     if dd.exists():
+#         f = dd[0]
+#         return JsonResponse({"status": "ok", 'nid': f.id, 'message': 'Your cab reached soon..'})
+#     else:
+#         return JsonResponse({'status': 'no'})
+
+def clean_coord(coord):
+    return float(str(coord).replace('°', '').strip())
+
+# Haversine formula to calculate distance between two lat/lng points
+def calculate_distance(lat1, lon1, lat2, lon2):
+    # Clean and convert coordinates to float
+    lat1 = clean_coord(lat1)
+    lon1 = clean_coord(lon1)
+    lat2 = clean_coord(lat2)
+    lon2 = clean_coord(lon2)
+
+    # Convert decimal degrees to radians
+    lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
+
+    # Haversine formula
+    dlon = lon2 - lon1
+    dlat = lat2 - lat1
+    a = sin(dlat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(dlon / 2) ** 2
+    c = 2 * asin(sqrt(a))
+    r = 6371  # Radius of Earth in kilometers
+    return c * r
+
+# from django.http import JsonResponse
+# from datetime import datetime
+# from math import radians, cos, sin, asin, sqrt
+# from .models import Spot_booking, Location,Pre_booking
+#
+#
+# # Haversine formula to calculate distance between two lat/lng points
+# def calculate_distance(lat1, lon1, lat2, lon2):
+#     # convert decimal degrees to radians
+#     lon1, lat1, lon2, lat2 = map(radians, [float(lon1), float(lat1), float(lon2), float(lat2)])
+#
+#     # haversine formula
+#     dlon = lon2 - lon1
+#     dlat = lat2 - lat1
+#     a = sin(dlat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(dlon / 2) ** 2
+#     c = 2 * asin(sqrt(a))
+#     r = 6371  # Radius of Earth in kilometers
+#     return c * r
+
+
+def viewNotification(request):
+    # lid = 12
+    lid = request.POST['lid']
+    nid = request.POST['nid']
+
+    # print(lid, 'User Login ID')
+    # print(nid, 'Last Notification ID')
+
+    today = datetime.now().date()
+
+    bookings = Spot_booking.objects.filter(USER__LOGIN_id=lid, Date=today, id__gt=nid).order_by('id')
+    # print(bookings)
+    if bookings.exists():
+        booking = bookings[0]
+        try:
+            # Get the latest driver location
+            driver_location = Location.objects.filter(DRIVER=booking.DRIVER).latest('id')
+
+            # Calculate the distance between user and driver
+            user_lat = booking.Latitude
+            user_lon = booking.Longitude
+            driver_lat = driver_location.Latitude
+            driver_lon = driver_location.Longitude
+
+            distance = calculate_distance(user_lat, user_lon, driver_lat, driver_lon)
+            # print("Distance:", distance)
+
+            if int(distance) <= int(0.0009):
+                return JsonResponse({"status": "ok", 'nid': str(booking.id), 'message': 'Your cab is 1 km away!'})
+            else:
+                return JsonResponse({"status": "no", "message": "Cab is still far away"})
+        except Location.DoesNotExist:
+            return JsonResponse({"status": "no", "message": "Driver location not found"})
+
+
+    else:
+        return JsonResponse({'status': 'no'})
+
+
+def p_viewNotification(request):
+    lid = request.POST['lid']
+    nid = request.POST['nid']
+
+    # print(lid, 'User Login ID')
+    # print(nid, 'Last Notification ID')
+
+    today = datetime.now().date()
+
+    bookingss = Pre_booking.objects.filter(USER__LOGIN_id=lid,Status="paid", Date=today, id__gt=nid).order_by('id')
+    # print(bookingss)
+    if bookingss.exists():
+        booking = bookingss[0]
+        try:
+            # Get the latest driver location
+            driver_location = Location.objects.filter(DRIVER=booking.DRIVER).latest('id')
+
+            # Calculate the distance between user and driver
+            user_lat = booking.pickupLatitude
+            user_lon = booking.pickupLongitude
+            driver_lat = driver_location.Latitude
+            driver_lon = driver_location.Longitude
+
+            # print(user_lat,user_lon,driver_lat,driver_lon)
+
+            distance = calculate_distance(user_lat, user_lon, driver_lat, driver_lon)
+            # print("Distance:", distance)
+
+            if int(distance) <= int(0.0009):
+                return JsonResponse({"status": "ok", 'nid': str(booking.id), 'message': 'Your cab is 1 km away!'})
+            else:
+                return JsonResponse({"status": "no", "message": "Cab is still far away"})
+        except Location.DoesNotExist:
+            return JsonResponse({"status": "no", "message": "Driver location not found"})
+
+
+    else:
+        return JsonResponse({'status': 'no'})
+
+#
+# def and_forget_password_post(request):
+#     email = request.POST['em_add']
+#     res = Login.objects.filter(Username=email)
+#     if res.exists():
+#         import random
+#         new_pass = random.randint(0000, 9999)
+#         server = smtplib.SMTP('smtp.gmail.com', 587)
+#         server.starttls()
+#         server.login("abhinand2018abhi@gmail.com", "kwwn dono uucv srbq")  # App Password
+#         to = email
+#         ubject = "Test Email"
+#         body = "Your new password is " + str(new_pass)
+#         msg = "Subject: {subject}\n\n{body}"
+#         server.sendmail("s@gmail.com", to, msg)        # Disconnect from the server
+#         server.quit()
+#         ress = Login.objects.filter(Username=email).update(Password=new_pass)
+#         return JsonResponse({'status':'ok'})
+#
+
+
+def and_forget_password_post(request):
+    email = request.POST['em_add']
+    res = Login.objects.filter(Username=email)
+    if res.exists():
+        import random
+        new_pass = random.randint(1000, 9999)  # Ensures a 4-digit code
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls()
+        server.login("abhinand2018abhi@gmail.com", "kwwndonouucvsrbq")  # App password
+        to = email
+        subject = "Password Reset"
+        body = f"Your new temporary password is: {new_pass}\n\nPlease log in and change your password."
+        msg = f"Subject: {subject}\n\n{body}"
+        server.sendmail("abhinand2018abhi@gmail.com", to, msg)
+        server.quit()
+        Login.objects.filter(Username=email).update(Password=new_pass)
+        return JsonResponse({'status': 'ok'})
+    else:
+        return JsonResponse({'status': 'invalid'})
+
+
+# 11.2589965
+# 75.7839904

@@ -1,0 +1,110 @@
+
+
+import os
+import cv2
+import face_recognition
+from datetime import datetime
+from dat import Database  # Ensure this module exists and is properly implemented
+
+# Initialize the database connection
+db = Database()
+
+# Fetch criminal data from the database
+qry = "SELECT * FROM `myapp_criminals`"
+res = db.select(qry)
+
+print("Fetched criminal records:", res)
+
+# Initialize lists for known images and IDs
+known_images = []
+known_ids = []
+
+# Load and encode criminal images from the database
+for criminal in res:
+    image_path = criminal["Image"].replace("/media/", "")
+    full_path = f"C:\\Users\\hp\\PycharmProjects\\Public_Transporation\\media\\{image_path}"
+
+    try:
+        # Load and encode criminal image
+        criminal_image = face_recognition.load_image_file(full_path)
+        print(f"Loading image: {full_path}")
+        face_encodings = face_recognition.face_encodings(criminal_image)
+
+        if face_encodings:
+            known_images.append(face_encodings[0])  # Save face encoding
+            known_ids.append(criminal['id'])        # Save criminal ID
+        else:
+            print(f"Warning: No face detected in {full_path}, skipping.")
+
+    except Exception as e:
+        print(f"Error processing image at {full_path}: {e}")
+
+# Define a video capture object
+vid = cv2.VideoCapture(0)
+
+if not vid.isOpened():
+    print("Error: Unable to access the webcam.")
+    exit()
+
+print("Press 'q' to quit the application.")
+
+while True:
+    # Capture frame from the webcam
+    ret, frame = vid.read()
+    if not ret:
+        print("Error: Failed to capture frame. Check your webcam connection.")
+        break
+
+    # Save the current frame to a temporary file
+    temp_image_path = "captured_frame.jpg"
+    cv2.imwrite(temp_image_path, frame)
+    cv2.imshow('Live Feed', frame)
+
+    # Exit when 'q' is pressed
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
+
+    # Process the captured frame
+    try:
+        frame_image = face_recognition.load_image_file(temp_image_path)
+        frame_encodings = face_recognition.face_encodings(frame_image)
+
+        print(f"Detected {len(frame_encodings)} face(s) in the current frame.")
+
+        # Compare each detected face with known faces
+        for encoding in frame_encodings:
+            matches = face_recognition.compare_faces(known_images, encoding, tolerance=0.45)
+            print(f"Comparison results: {matches}")
+
+            for index, is_match in enumerate(matches):
+                if is_match:
+                    print(f"Match found for Criminal ID: {known_ids[index]}")
+
+                    # Save the detected image with a timestamp
+                    timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+                    detected_image_path = f"C:\\Users\\hp\\PycharmProjects\\Public_Transporation\\media\\{timestamp}.jpg"
+                    os.makedirs(os.path.dirname(detected_image_path), exist_ok=True)
+                    cv2.imwrite(detected_image_path, frame)
+
+                    # Prepare the relative path for database insertion
+                    relative_image_path = f"/media/{timestamp}.jpg"
+
+                    # Insert alert into the database
+                    alert_query = f"""
+                    INSERT INTO `myapp_alert` 
+                    (`Date`, `Time`, `Title`, `Descriptions`, `Image`, `DRIVER_id`, `Criminal_id`) 
+                    VALUES ('{datetime.now().date()}', '{datetime.now().time()}', 'Criminal', 
+                            'Detected face captured', '{relative_image_path}', '14', '{known_ids[index]}')
+                    """
+                    print("Final Query:", alert_query)
+                    db.insert(alert_query)
+                    values = (datetime.now().date(), datetime.now().time(), 'Criminal',
+                              'Detected face captured', relative_image_path, '14', known_ids[index])
+                    db.insert(alert_query, values)
+                    print(f"Alert inserted for Criminal ID: {known_ids[index]} with image: {relative_image_path}")
+    except Exception as e:
+        print(f"Error processing frame: {e}")
+
+# Release the video capture object and close all OpenCV windows
+vid.release()
+cv2.destroyAllWindows()

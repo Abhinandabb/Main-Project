@@ -1,0 +1,140 @@
+from django.db import models
+
+
+class Login(models.Model):
+    Username=models.CharField(max_length=100)
+    Password=models.CharField(max_length=100)
+    Type=models.CharField(max_length=100)
+
+class Driver(models.Model):
+    LOGIN = models.ForeignKey(Login, on_delete=models.CASCADE)
+    Name=models.CharField(max_length=100)
+    Age=models.CharField(max_length=100)
+    Mobile_no=models.BigIntegerField()
+    Email=models.CharField(max_length=100,default='')
+    Photo=models.CharField(max_length=200)
+    vehicle_photo=models.CharField(max_length=500,default='')
+    Place = models.CharField(max_length=100)
+    Pin = models.IntegerField()
+    Post = models.CharField(max_length=100)
+    experience=models.CharField(max_length=100,default="")
+    License=models.CharField(max_length=200)
+    Vehicle=models.CharField(max_length=100)
+    Rc_no=models.CharField(max_length=100)
+    Status=models.CharField(max_length=100)
+    Active_Status=models.CharField(max_length=100,default="")
+    F_amount=models.CharField(max_length=100,default="")
+
+
+
+class Users(models.Model):
+    LOGIN=models.ForeignKey(Login,on_delete=models.CASCADE)
+    Name = models.CharField(max_length=100)
+    Email = models.CharField(max_length=100, default='')
+    Age = models.CharField(max_length=100)
+    Gender=models.CharField(max_length=100,default='')
+    Place=models.CharField(max_length=100)
+    Pin=models.IntegerField()
+    Post=models.CharField(max_length=100)
+    Photo = models.CharField(max_length=1000)
+    Mobile_no = models.BigIntegerField()
+    Status = models.CharField(max_length=100)
+
+class Complaint(models.Model):
+    LOGIN=models.ForeignKey(Login,on_delete=models.CASCADE,default=True)
+    Date=models.CharField(max_length=100)
+    Complaint=models.CharField(max_length=300)
+    Reply=models.CharField(max_length=300)
+    Status = models.CharField(max_length=100)
+
+class Review(models.Model):
+    LOGIN = models.ForeignKey(Login, on_delete=models.CASCADE)
+    Type=models.CharField(max_length=100,default="")
+    Date = models.CharField(max_length=100)
+    Review=models.CharField(max_length=300)
+    Rating=models.CharField(max_length=100)
+
+class Cmp_Driver_User(models.Model):
+    Date = models.CharField(max_length=100)
+    Complaint = models.CharField(max_length=300)
+    Reply = models.CharField(max_length=300)
+    Type=models.CharField(max_length=100)
+    FROM=models.ForeignKey(Login,on_delete=models.CASCADE,related_name='fr')
+    TO=models.ForeignKey(Login,on_delete=models.CASCADE,related_name='to')
+    Status = models.CharField(max_length=100)
+
+class Spot_booking(models.Model):
+    USER = models.ForeignKey(Users, on_delete=models.CASCADE)
+    DRIVER=models.ForeignKey(Driver,on_delete=models.CASCADE)
+    Date = models.CharField(max_length=100)
+    Amount=models.FloatField()
+    Qr=models.CharField(max_length=100)
+    Latitude = models.CharField(max_length=100,default='')
+    Longitude = models.CharField(max_length=100,default='')
+    Location = models.CharField(max_length=100, default='')
+    Status = models.CharField(max_length=100)
+    Type = models.CharField(max_length=100,default="spot")
+
+class Pre_booking(models.Model):
+    USER = models.ForeignKey(Users, on_delete=models.CASCADE)
+    DRIVER = models.ForeignKey(Driver, on_delete=models.CASCADE)
+    Date = models.CharField(max_length=100)
+    Latitude = models.CharField(max_length=100,default='')
+    Longitude = models.CharField(max_length=100,default='')
+    pickupLatitude = models.CharField(max_length=100,default='')
+    pickupLongitude = models.CharField(max_length=100,default='')
+    Booking_date=models.CharField(max_length=100)
+    Time=models.TimeField()
+    Amount = models.FloatField()
+    P_Amount=models.FloatField(default=0.0)
+    Qr = models.CharField(max_length=100)
+    Status = models.CharField(max_length=100)
+    Type = models.CharField(max_length=100,default="pre")
+
+
+class Location(models.Model):
+    DRIVER = models.ForeignKey(Driver, on_delete=models.CASCADE)
+    Latitude=models.CharField(max_length=100)
+    Longitude=models.CharField(max_length=100)
+
+class spot_book_payment(models.Model):
+    spot_booking=models.ForeignKey(Spot_booking,on_delete=models.CASCADE)
+    Date=models.CharField(max_length=100)
+    Amount=models.FloatField()
+    Status=models.CharField(max_length=100)
+    USER = models.ForeignKey(Users, on_delete=models.CASCADE)
+
+class pre_book_payment(models.Model):
+    pre_booking=models.ForeignKey(Pre_booking,on_delete=models.CASCADE)
+    Date = models.CharField(max_length=100)
+    Amount = models.FloatField()
+    Status = models.CharField(max_length=100)
+    USER = models.ForeignKey(Users, on_delete=models.CASCADE)
+
+class notification(models.Model):
+    user=models.ForeignKey(Users, on_delete=models.CASCADE)
+    booking=models.ForeignKey(Spot_booking, on_delete=models.CASCADE)
+    Date = models.CharField(max_length=100)
+    message=models.CharField(max_length=100)
+
+
+class Criminals(models.Model):
+    Name=models.CharField(max_length=100)
+    Image=models.CharField(max_length=1000)
+    Age=models.CharField(max_length=100)
+    Crime=models.CharField(max_length=100)
+
+class Alert(models.Model):
+    DRIVER = models.ForeignKey(Driver, on_delete=models.CASCADE)
+    Criminal=models.ForeignKey(Criminals, on_delete=models.CASCADE)
+    Date=models.DateField()
+    Title=models.CharField(max_length=100)
+    Descriptions=models.CharField(max_length=100)
+    Time=models.CharField(max_length=100)
+    Image=models.CharField(max_length=1000)
+
+class Emergency(models.Model):
+    # DRIVER = models.ForeignKey(Driver, on_delete=models.CASCADE)
+    District=models.CharField(max_length=100)
+    Mobile_no=models.CharField(max_length=100)
+
